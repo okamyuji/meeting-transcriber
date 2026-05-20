@@ -7,7 +7,7 @@ requires-python = ">=3.11"
 dependencies = [
     "faster-whisper>=1.2.1",
     "ollama>=0.6.1",
-    "python-dotenv>=1.2.1",
+    "python-dotenv>=1.2.2",
     "sounddevice>=0.5.3",
     "soundfile>=0.13.1",
     "tqdm>=4.67.1",
@@ -17,7 +17,7 @@ dependencies = [
 dev = [
     "mypy>=1.19.0",
     "pre-commit>=4.5.0",
-    "pytest>=9.0.1",
+    "pytest>=9.0.3",
     "pytest-cov>=7.0.0",
     "ruff>=0.14.7",
     "types-tqdm>=4.67.0.20250809",
