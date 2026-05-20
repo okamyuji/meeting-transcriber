@@ -30,11 +30,14 @@ class Transcriber:
     """音声文字起こしクラス"""
 
     # 日本語向け推奨モデル
+    # faster-whisper は CTranslate2 形式のモデルを必要とします。
+    # kotoba-tech/kotoba-whisper-v1.0 は HuggingFace Transformers 形式のため
+    # 直接ロードできないので、CTranslate2 版の `-faster` サフィックス付きを指定します。
     JAPANESE_MODELS = {
         "small": "small",  # 軽量（CPU向け）
         "medium": "medium",  # バランス型
-        "large-v3": "large-v3",  # 高精度
-        "large-v3-ja": "kotoba-tech/kotoba-whisper-v1.0",  # 日本語特化（推奨）
+        "large-v3": "large-v3",  # 高精度（完走の安定性を優先する場合はこちら）
+        "large-v3-ja": "kotoba-tech/kotoba-whisper-v1.0-faster",  # 日本語特化（CTranslate2版）
     }
 
     def __init__(self, model_name: str = "medium", device: str = "cpu", compute_type: str = "int8"):

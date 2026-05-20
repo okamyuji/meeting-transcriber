@@ -50,9 +50,9 @@ def test_transcriber_japanese_model_mapping() -> None:
     with patch("app.transcriber.WhisperModel") as mock_model_class:
         Transcriber(model_name="large-v3-ja")
 
-        # large-v3-jaはkotoba-tech/kotoba-whisper-v1.0にマッピングされる
+        # large-v3-jaはCTranslate2版のkotoba-tech/kotoba-whisper-v1.0-fasterにマッピングされる
         mock_model_class.assert_called_once_with(
-            "kotoba-tech/kotoba-whisper-v1.0", device="cpu", compute_type="int8"
+            "kotoba-tech/kotoba-whisper-v1.0-faster", device="cpu", compute_type="int8"
         )
 
 

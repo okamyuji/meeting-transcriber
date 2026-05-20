@@ -55,5 +55,4 @@ data/transcripts/*.md
 Thumbs.db
 
 # uv
-uv.lock
 .coverage

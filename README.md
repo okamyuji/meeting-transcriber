@@ -1,419 +1,173 @@
-# 🎙️ 会議文字起こし＆議事録作成ツール
+# meeting-transcriber
 
-**完全ローカル実行**可能な、日本語高精度の会議文字起こし＆議事録自動作成アプリケーションです。
+完全ローカルで動作する日本語向け会議文字起こしと議事録自動生成ツールです。faster-whisper を使った音声文字起こしと、Ollama によるローカルLLMを組み合わせ、データを外部に送らずに会議の記録と議事録作成をおこなえます。
 
-## ✨ 特徴
+## 特徴
 
-- **🇯🇵 日本語に特化** - faster-whisper + **Kotoba Whisper V1.0**（日本語特化モデル）で高精度な文字起こし
-- **💻 完全ローカル実行** - インターネット不要！すべてローカルで完結
-- **🔒 プライバシー保護** - データは外部に送信されません
-- **🤖 ローカルLLM活用** - Ollama（Qwen2.5/Llama3.1等）で議事録を自動生成
-- **📚 RAG対応** - ナレッジベース（用語集・プロジェクト情報）を参照した議事録作成
-- **⚡ CPU動作** - GPUなしでも快適に動作（int8量子化で高速化）
-- **🎙️ 簡単録音** - CLIから直接マイク録音が可能
-- **📝 多機能** - 録音・文字起こし・議事録作成を一括処理、または個別実行も可能
-- **🔍 コード品質** - ruff + mypy + pytest でコード品質を担保
+- 初回セットアップで依存パッケージとモデルを取得した後は、インターネット接続なしで動作します
+- faster-whisperで日本語音声を文字起こしできます
+- Ollamaの任意のローカルLLMで議事録を自動生成できます
+- ナレッジベースを参照して用語を補正するRAG機能を備えています
+- ruffとmypyとpytestでコード品質を担保しています
+- pre-commitとGitHub Actionsにgitleaksを組み込み、機密情報の混入を継続的に検査しています
 
-## 🚀 クイックスタート
+## 動作要件
 
-### 1. インストール
+- Python 3.11以上
+- macOSまたはLinuxでの動作を想定しています
+- 議事録生成機能を使う場合はOllamaを別途インストールしておいてください
+
+## インストール
+
+依存解決にはuvを使います。インストールしていない場合は[公式手順](https://docs.astral.sh/uv/)に従って導入してください。
 
 ```bash
-# リポジトリをクローン
-git clone <repository-url>
+git clone https://github.com/okamyuji/meeting-transcriber.git
 cd meeting-transcriber
 
-# 依存関係のインストール（本番環境）
+# 本番依存のみ
 uv sync
 
-# 開発環境の場合
+# 開発依存も含める
 uv sync --all-groups
 ```
 
-### 2. Ollamaのセットアップ（議事録作成機能を使う場合）
-
-議事録作成とRAG機能を使用するには、Ollamaが必要です。
-
-#### インストール
+Ollamaを利用する場合は議事録生成用のモデルと、RAG用の埋め込みモデルを取得しておきます。
 
 ```bash
-# macOS / Linux
-curl -fsSL https://ollama.com/install.sh | sh
-
-# または公式サイトからダウンロード
-https://ollama.com/download
-```
-
-**推奨モデルのダウンロード:**
-
-```bash
-# 【日本語特化】議事録生成用モデル（最推奨）
 ollama pull qwen2.5:7b
-# Qwen2.5は多言語対応で日本語の精度が高く、議事録作成に最適
-
-# または他の日本語対応モデル
-ollama pull llama3.1:8b    # Meta製、バランス型
-ollama pull gemma2:9b       # Google製、高速
-
-# 【必須】RAG機能用の埋め込みモデル
 ollama pull mxbai-embed-large
-# ナレッジベース（用語集・プロジェクト情報）の検索に使用
 ```
 
-#### モデル選択のポイント
-
-| モデル | サイズ | メモリ | 日本語精度 | 速度 | 特徴 |
-|--------|--------|--------|-----------|------|------|
-| **qwen2.5:7b** | 4.7GB | ~8GB | ⭐⭐⭐⭐⭐ | ⚡⚡ | **最推奨**・日本語に強い・議事録の文章が自然 |
-| llama3.1:8b | 4.7GB | ~8GB | ⭐⭐⭐⭐ | ⚡⚡ | バランス型・英語も得意 |
-| gemma2:9b | 5.4GB | ~10GB | ⭐⭐⭐⭐ | ⚡⚡⚡ | Google製・高速 |
-
-> **💡 ヒント**: メモリが少ない環境では、より小さいモデル（`qwen2.5:3b` など）も選択可能です。
->
-> **注意**: Ollamaがなくても、録音と文字起こしは利用できます（文字起こしのみ実行可能）。
-
-### 3. 実行
+## クイックスタート
 
 ```bash
-# アプリケーションを起動
 uv run python main.py
 ```
 
-## 📖 使い方
+メニューから処理を選びます。
 
-アプリケーションを起動すると、以下のメニューが表示されます。
-
-```shell
-【メニュー】
-  1. 🎙️  録音 → 文字起こし → 議事録作成（フルワークフロー）
-  2. 📁 既存の音声ファイルから文字起こし＆議事録作成
-  3. 📝 既存の文字起こしから議事録作成
-  4. 🎤 録音のみ（テスト用）
-  5. 🔧 設定（モデル選択など）
-  6. ❌ 終了
+```text
+1. 録音 -> 文字起こし -> 議事録作成（フルワークフロー）
+2. 既存の音声ファイルから文字起こしと議事録作成
+3. 既存の文字起こしから議事録作成
+4. 録音のみ
+5. 設定（モデル選択など）
+6. 終了
 ```
 
-### 基本的なワークフロー
-
-#### 1️⃣ 会議を録音して議事録を作成
-
-1. メニューから `1` を選択
-2. 会議タイトルや参加者情報を入力（省略可）
-3. Enterキーを押して録音開始
-4. 会議終了後、もう一度Enterキーを押して録音停止
-5. 自動的に文字起こし → 議事録作成が実行されます
-
-#### 2️⃣ 既存の音声ファイルを処理
-
-1. メニューから `2` を選択
-2. 音声ファイルのパスを入力（例: `data/audio/meeting.wav`）
-3. 会議情報を入力（省略可）
-4. 自動的に文字起こし → 議事録作成が実行されます
-
-#### 3️⃣ 既存の文字起こしから議事録のみ作成
-
-1. メニューから `3` を選択
-2. 文字起こしファイルのパスを入力
-3. 議事録が生成されます
-
-### 各モジュールの個別実行
+文字起こしだけを試したい場合は次のコマンドで音声ファイルを指定できます。
 
 ```bash
-# 録音のみ
-uv run python -m app.recorder
-
-# 文字起こしのみ
-uv run python -m app.transcriber <音声ファイルのパス> [モデル名]
-
-# 議事録作成のみ
-uv run python -m app.minutes_generator <文字起こしファイルのパス>
+uv run python -m app.transcriber path/to/audio.wav large-v3
 ```
 
-## 🔧 設定
+## Whisperモデルの選択
 
-### モデル選択
+`app/transcriber.py` の `JAPANESE_MODELS` で内部マッピングを定義しています。
 
-メニューの `5` から、Whisperモデルのサイズを選択できます。
+| 設定値 | 実体 | 用途 |
+|---|---|---|
+| `small` | `small` | 軽量で低スペック環境向けです |
+| `medium` | `medium` | バランス重視の標準モデルです |
+| `large-v3` | `large-v3` | 完走の安定性を重視する場合に向いています |
+| `large-v3-ja` | `kotoba-tech/kotoba-whisper-v1.0-faster` | 日本語特化のCTranslate2版です |
 
-| モデル | メモリ | 速度 | 精度 | 推奨環境 |
-|--------|--------|------|------|----------|
-| small | ~1GB | ⚡⚡⚡ | ⭐⭐ | 低スペックPC |
-| medium | ~2GB | ⚡⚡ | ⭐⭐⭐ | 標準PC |
-| large-v3 | ~4GB | ⚡ | ⭐⭐⭐⭐ | 高スペックPC |
-| **large-v3-ja** | ~4GB | ⚡ | ⭐⭐⭐⭐⭐ | **日本語特化（推奨）** |
+`kotoba-tech/kotoba-whisper-v1.0` はHuggingFace Transformers形式で配布されているため、faster-whisperでは `model.bin` が見つからずロードに失敗します。日本語特化モデルを利用する場合はCTranslate2変換済みの `kotoba-tech/kotoba-whisper-v1.0-faster` を指定してください。
 
-> **💡 推奨**: 日本語の会議には `large-v3-ja`（Kotoba Whisper V1.0）が最適です。
-> OpenAI Whisper large-v3 の日本語特化版で、CER/WERが大幅に改善されています。
+なお、漫才やバラエティ音声を題材にした実機検証では、Kotoba Whisper系（`v1.0-faster` と `v2.0-faster`）で音声の前半数十秒で文字起こしが停止する事象を確認しました。途中停止に遭遇した場合は `large-v3` への切り替えを試してください。
 
-### 処理時間の目安
+## RAG機能
 
-CPUの性能によりますが、一般的な目安は以下の通りです：
+`data/knowledge/` ディレクトリにMarkdownファイルを置くと、議事録生成のプロンプトに関連知識が自動的に追加されます。埋め込みは初回計算時に `.rag_cache/` にキャッシュされ、2回目以降の起動を高速化します。
 
-| 音声長 | small | medium | large-v3 | large-v3-ja |
-|--------|-------|--------|----------|-------------|
-| 5分 | ~30秒 | ~1分 | ~2分 | ~1.5分 |
-| 10分 | ~1分 | ~2分 | ~5分 | ~3分 |
-| 30分 | ~3分 | ~6分 | ~15分 | ~10分 |
-| 60分 | ~6分 | ~12分 | ~30分 | ~20分 |
-
-> **💡 ヒント**: `large-v3-ja` は large-v3 と同等の精度で、日本語の処理が高速化されています。
-
-### 日本語特化モデルについて
-
-#### Kotoba Whisper V1.0 の特徴
-
-`large-v3-ja` オプションで使用される [kotoba-tech/kotoba-whisper-v1.0](https://huggingface.co/kotoba-tech/kotoba-whisper-v1.0) は：
-
-- **ベース**: OpenAI Whisper large-v3
-- **最適化**: 日本語ASR用に蒸留・チューニング
-- **性能向上**:
-    - 元の large-v3 より **最大6.3倍高速**
-    - **CER（文字誤り率）/WER（単語誤り率）が改善**
-    - 日本語の話し言葉により強い
-
-#### 使い方
-
-1. メニューから `5. 🔧 設定` を選択
-2. `large-v3-ja` を選択
-3. 初回実行時に自動ダウンロード（~4GB）
-
-または、コマンドラインで直接指定：
-
-```bash
-uv run python -m app.transcriber <音声ファイル> large-v3-ja
+```text
+data/knowledge/
+  README.md
+  terms.md
 ```
 
-## 🧪 開発者向け情報
+用語集の中身は自由に編集できます。新しい `.md` ファイルを追加するだけで自動的に取り込まれます。
 
-### コード品質チェック
+## 開発
 
-このプロジェクトは[uvとRuffで実現する高速で堅牢なPython開発環境の構築](https://zenn.dev/okamyuji/articles/uv-practical-guide)に従って構築されています。
+リポジトリには以下の品質ゲートを設定しています。
+
+- ruff: lintとフォーマット
+- mypy: 静的型検査
+- pytest: 単体テスト
+- gitleaks: 機密情報の検査
+- pre-commit: 上記をコミット前に一括実行
+- GitHub Actions: pushとpull requestで同じチェックを実行
+
+ローカルで一括実行する場合は次のコマンドを使います。
 
 ```bash
-# Ruffでリント＆フォーマット
-uv run ruff check app/ main.py --fix
-uv run ruff format app/ main.py
-
-# mypyで型チェック
+uv run ruff check app/ main.py
+uv run ruff format --check app/ main.py
 uv run mypy app/ main.py
-
-# すべてのチェックを実行
-uv run pre-commit run --all-files
-```
-
-### テスト
-
-```bash
-# すべてのテストを実行
 uv run pytest
-
-# カバレッジレポート付き
-uv run pytest --cov=app --cov-report=html
-
-# カバレッジレポートを表示
-open htmlcov/index.html
-```
-
-### pre-commitフック
-
-開発時は、コミット前に自動的にコード品質チェックが実行されます。
-
-```bash
-# pre-commitのインストール
-uv run pre-commit install
-
-# 手動実行
 uv run pre-commit run --all-files
 ```
 
-### プロジェクト構造
+初回はpre-commitフックの有効化を忘れずにおこなってください。
 
-```shell
+```bash
+uv run pre-commit install
+```
+
+## ディレクトリ構成
+
+```text
 meeting-transcriber/
-├── app/
-│   ├── __init__.py           # パッケージ初期化
-│   ├── logger.py             # ロギング設定
-│   ├── recorder.py           # 音声録音モジュール
-│   ├── transcriber.py        # 文字起こしモジュール
-│   ├── minutes_generator.py  # 議事録生成モジュール
-│   └── rag.py                # RAG（ナレッジベース）モジュール
-├── tests/                    # テストコード
-├── data/
-│   ├── audio/                # 録音ファイル保存先
-│   ├── transcripts/          # 文字起こし・議事録保存先
-│   └── knowledge/            # RAG用ナレッジベース（Markdown）
-├── .rag_cache/               # 埋め込みキャッシュ（自動生成）
-├── main.py                   # メインCLI
-├── pyproject.toml            # プロジェクト設定（ruff/mypy/pytest設定含む）
-├── .pre-commit-config.yaml   # pre-commit設定
-├── .env.example              # 環境変数テンプレート
-└── README.md                 # このファイル
+  app/
+    __init__.py
+    logger.py
+    recorder.py
+    transcriber.py
+    minutes_generator.py
+    rag.py
+  data/
+    audio/
+    transcripts/
+    knowledge/
+  .github/workflows/ci.yml
+  .pre-commit-config.yaml
+  main.py
+  pyproject.toml
+  README.md
 ```
 
-## 🛠️ トラブルシューティング
+## トラブルシューティング
 
-### 録音ができない
+| 症状 | 対処 |
+|---|---|
+| 録音できない | macOSではシステム設定のプライバシー項目でターミナルにマイク利用を許可してください |
+| 文字起こしが途中で止まる | `large-v3` に切り替える、`vad_filter=False` を試す、`beam_size` を下げるなどで挙動を確認してください |
+| `kotoba-tech/kotoba-whisper-v1.0` のロード失敗 | CTranslate2版の `kotoba-tech/kotoba-whisper-v1.0-faster` を指定してください |
+| Ollamaに接続できない | 別ターミナルで `ollama serve` を起動し、必要なモデルが `ollama list` に表示されることを確認してください |
+| メモリ不足 | より小さなモデル（`small` や `medium`）を選んでください |
 
-**macOS の場合:**
+## コストについて
 
-システム環境設定 > セキュリティとプライバシー > プライバシー > マイク で、ターミナルにマイクへのアクセス許可を与えてください。
+文字起こしと議事録生成はいずれも自分の計算機の上で動きます。外部APIや有償SaaSは経由しないため、ランニングコストは電力とディスクの実費だけです。クラウド型の文字起こしサービスでよくある従量課金は発生しません。
 
-**利用可能なデバイスを確認:**
+- 録音: ストレージのみ
+- 文字起こし: faster-whisperによるローカル計算
+- 議事録生成: Ollamaによるローカル計算
 
-```bash
-uv run python -m app.recorder
-```
+## プライバシーとセキュリティ
 
-### 文字起こしが遅い
+音声データも文字起こしも議事録もすべてローカルファイルに保存され、外部に送信されません。
 
-- モデルサイズを小さくする（`medium` → `small`）
-- バックグラウンドアプリを閉じてCPUリソースを確保
+| 機能 | 保存先 | 外部送信 |
+|---|---|---|
+| 録音 | `data/audio/` | なし |
+| 文字起こし | `data/transcripts/` | なし |
+| 議事録 | `data/transcripts/` | なし |
 
-### 議事録作成でエラーが出る
+機密情報を含む打ち合わせや、組織のセキュリティポリシー上クラウドへの送信が難しい録音でも安心して利用できます。なお、初回セットアップ時にfaster-whisperのモデルファイルとOllamaのLLMモデルをダウンロードするため、その時点ではインターネット接続が必要です。
 
-| エラーメッセージ | 原因 | 解決方法 |
-|----------------|------|---------|
-| `Ollamaサーバーに接続できません` | Ollamaが起動していない | `ollama serve` でOllamaを起動 |
-| `モデルが見つかりません` | モデルがダウンロードされていない | `ollama pull qwen2.5:7b` でモデルをダウンロード |
-| `Connection refused` | Ollamaが起動していない | [Ollama公式サイト](https://ollama.com/download)からインストール |
+## ライセンス
 
-### メモリ不足エラー
-
-モデルサイズを小さくしてください：
-
-- 最低メモリ要件:
-    - small: 4GB RAM
-    - medium: 8GB RAM
-    - large-v3: 16GB RAM
-
-## 📚 RAG機能（ナレッジベース参照）
-
-RAG（Retrieval-Augmented Generation）機能を使うと、議事録作成時にプロジェクト固有の用語集や情報を自動的に参照できます。
-
-### RAGのセットアップ
-
-1. **埋め込みモデルのダウンロード**
-
-    ```bash
-    ollama pull mxbai-embed-large
-    ```
-
-2. **ナレッジベースの作成**
-
-    `data/knowledge/` ディレクトリに Markdown ファイルを配置するだけで自動的に参照されます。
-
-    ```bash
-    # サンプルファイルはすでに用意されています
-    data/knowledge/
-    ├── README.md    # 使い方ガイド
-    └── terms.md     # サンプル用語集
-    ```
-
-3. **用語集の編集**
-
-    `data/knowledge/terms.md` を編集して、プロジェクト固有の情報を追加：
-
-    ```markdown
-    # プロジェクト情報
-
-    ## 社内プロジェクト
-    - Project Alpha: 新製品開発プロジェクト。2025年Q2リリース予定
-    - Project Beta: 既存システムのリニューアル
-
-    ## 技術用語
-    - RAG: Retrieval-Augmented Generation（検索拡張生成）
-    - LLM: Large Language Model（大規模言語モデル）
-
-    ## チーム構成
-    - 開発チーム: 田中さん、佐藤さん
-    - 企画チーム: 鈴木さん、高橋さん
-    ```
-
-4. **新しいナレッジファイルの追加**
-
-    任意の `.md` ファイルを `data/knowledge/` に追加できます：
-
-    ```bash
-    # 例: プロジェクト情報を追加
-    echo "# Project Alpha\n\n新製品開発プロジェクト..." > data/knowledge/project_alpha.md
-    ```
-
-### RAGの仕組み
-
-1. **自動検索**: 文字起こしテキストから関連するキーワードを抽出
-2. **類似度計算**: 埋め込みベクトルのコサイン類似度で関連知識を検索
-3. **自動参照**: 上位3件の関連情報を議事録作成時のプロンプトに追加
-4. **キャッシュ**: 埋め込みは `.rag_cache/` にキャッシュされ、2回目以降は高速
-
-### ベストプラクティス
-
-- **具体的に書く**: 「新プロジェクト」より「Project Alpha（新製品開発）」
-- **略語を展開**: 「RAG（検索拡張生成）」のように正式名称も記載
-- **セクション分け**: 見出し（`#`）を使って構造化する
-- **定期的に更新**: プロジェクト情報は最新に保つ
-
-### キャッシュのクリア
-
-ナレッジベースが正しく更新されない場合：
-
-```bash
-# キャッシュを削除して再起動
-rm -rf .rag_cache/
-uv run python main.py
-```
-
-## 💰 コストについて
-
-### すべて完全無料
-
-- ✅ **録音**: 無料（ストレージのみ）
-- ✅ **文字起こし（faster-whisper）**: 無料（CPU/メモリのみ）
-- ✅ **議事録作成（Ollama）**: 無料（CPU/メモリのみ）
-
-**外部APIは一切使用しません** - すべてローカルで完結するため、ランニングコストはゼロです。
-
-## 🔒 プライバシーとセキュリティ
-
-### 完全ローカル実行 - データは外部に送信されません
-
-| 機能 | データの保存場所 | 外部送信 |
-|-----|-------------|---------|
-| 録音 | `data/audio/` (ローカル) | ❌ なし |
-| 文字起こし | `data/transcripts/` (ローカル) | ❌ なし |
-| 議事録作成 | `data/transcripts/` (ローカル) | ❌ なし |
-
-**すべての処理がローカルで完結** - インターネット接続不要で、機密情報も安全に扱えます。
-
-## 🤝 技術スタック
-
-- **音声録音**: [sounddevice](https://python-sounddevice.readthedocs.io/)
-- **文字起こし**:
-    - [faster-whisper](https://github.com/guillaumekln/faster-whisper) (CTranslate2ベース高速実装)
-    - [Kotoba Whisper V1.0](https://huggingface.co/kotoba-tech/kotoba-whisper-v1.0) (日本語特化モデル・推奨)
-- **議事録生成**: [Ollama](https://ollama.com/) (ローカルLLM)
-- **RAG**: [Ollama Embeddings](https://ollama.com/) (mxbai-embed-large)
-- **パッケージ管理**: [uv](https://github.com/astral-sh/uv)
-- **コード品質**: [ruff](https://github.com/astral-sh/ruff), [mypy](https://github.com/python/mypy)
-- **テスト**: [pytest](https://docs.pytest.org/)
-
-## 📚 参考リンク
-
-### ASR（文字起こし）
-
-- [faster-whisper 公式ドキュメント](https://github.com/guillaumekln/faster-whisper)
-- [Kotoba Whisper V1.0](https://huggingface.co/kotoba-tech/kotoba-whisper-v1.0) - 日本語特化モデル
-- [OpenAI Whisper](https://github.com/openai/whisper) - オリジナル実装
-
-### LLM・RAG
-
-- [Ollama 公式サイト](https://ollama.com/)
-- [Ollama モデルライブラリ](https://ollama.com/library)
-
-### 開発ツール
-
-- [uv 公式ドキュメント](https://docs.astral.sh/uv/)
-- [uvとRuffで実現する高速で堅牢なPython開発環境の構築](https://zenn.dev/okamyuji/articles/uv-practical-guide)
-
-## 📄 ライセンス
-
-MIT License
+MITライセンスのもとで配布しています。著作権表記の名義はokamyujiです。

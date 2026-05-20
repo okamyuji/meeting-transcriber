@@ -26,3 +26,8 @@ repos:
         additional_dependencies:
           - types-requests
         args: [--ignore-missing-imports, --scripts-are-modules]
+
+  - repo: https://github.com/gitleaks/gitleaks
+    rev: v8.21.2
+    hooks:
+      - id: gitleaks
