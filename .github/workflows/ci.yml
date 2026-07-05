@@ -47,17 +47,5 @@ jobs:
       - name: pytest
         run: uv run pytest --no-cov
 
-  gitleaks:
-    name: gitleaks
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout
-        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
-        with:
-          fetch-depth: 0
-          persist-credentials: false
-
-      - name: Run gitleaks
-        uses: gitleaks/gitleaks-action@ff98106e4c7b2bc287b24eaf42907196329070c7 # v2
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+  security:
+    uses: okamyuji/reusable-workflows/.github/workflows/security-scan.yml@v1
