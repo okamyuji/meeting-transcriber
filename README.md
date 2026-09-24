@@ -97,8 +97,8 @@ data/knowledge/
 - mypy: 静的型検査
 - pytest: 単体テスト
 - gitleaks: 機密情報の検査
-- pre-commit: 上記をコミット前に一括実行
-- GitHub Actions: pushとpull requestで同じチェックを実行
+- pre-commit: コミット前にruff、mypy、gitleaksを実行（pytestは含まない）
+- GitHub Actions: mainへのpushとmain向けのpull requestで、ruff、mypy、pytest、gitleaksを実行
 
 ローカルで一括実行する場合は次のコマンドを使います。
 
