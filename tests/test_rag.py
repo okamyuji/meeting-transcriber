@@ -546,3 +546,43 @@ def test_search_returns_empty_when_no_chunk_reaches_threshold(
         mock_embed.return_value = EmbedResponse(embeddings=[[-1.0, -1.0, -1.0]])
 
         assert kb.search("テストクエリ", threshold=0.5) == ""
+
+
+def test_split_into_chunks_caps_long_line_to_chunk_size(
+    temp_knowledge_dir: Path, temp_cache_dir: Path
+) -> None:
+    """改行のない長い段落も、埋め込みモデルに収まるchunk_size以下に分割するテスト"""
+    with patch("ollama.list") as mock_list:
+        mock_list.return_value = ListResponse(models=[{"model": "mxbai-embed-large"}])
+        kb = KnowledgeBase(knowledge_dir=temp_knowledge_dir, cache_dir=temp_cache_dir)
+    paragraph = "あ" * 1200
+
+    chunks = kb._split_into_chunks(f"# 長文\n{paragraph}\n", "long.md", chunk_size=500)
+
+    assert all(len(c["content"]) <= 500 for c in chunks)
+    assert "".join(c["content"] for c in chunks) == f"# 長文\n{paragraph}"
+    assert {c["title"] for c in chunks} == {"長文"}
+
+
+def test_load_knowledge_reembeds_cache_from_older_chunk_format(
+    temp_knowledge_dir: Path, temp_cache_dir: Path, sample_knowledge_file: Path
+) -> None:
+    """チャンク形式の版が異なるキャッシュは、ハッシュが一致しても再計算するテスト"""
+    file_hash = hashlib.md5(sample_knowledge_file.read_text(encoding="utf-8").encode()).hexdigest()
+    cache_file = temp_cache_dir / "embeddings.json"
+    cache_file.write_text(
+        json.dumps(
+            {"test.md": {"hash": file_hash, "chunks": [{"content": "x", "embedding": [1.0]}]}}
+        ),
+        encoding="utf-8",
+    )
+
+    with patch("ollama.list") as mock_list, patch("ollama.embed") as mock_embed:
+        mock_list.return_value = ListResponse(models=[{"model": "mxbai-embed-large"}])
+        mock_embed.return_value = EmbedResponse(embeddings=[[0.1, 0.2, 0.3]])
+
+        kb = KnowledgeBase(knowledge_dir=temp_knowledge_dir, cache_dir=temp_cache_dir)
+
+    assert len(kb.knowledge_chunks) == 3
+    saved = json.loads(cache_file.read_text(encoding="utf-8"))["test.md"]
+    assert saved["version"] == KnowledgeBase.CACHE_VERSION

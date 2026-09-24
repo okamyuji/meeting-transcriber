@@ -27,6 +27,7 @@ class KnowledgeBase:
     """Markdownベースのナレッジベース（RAG用）"""
 
     QUERY_WINDOW_SIZE = 300  # mxbai-embed-largeの512トークン制限に収まる文字数の窓
+    CACHE_VERSION = 2  # チャンク分割の形式を変えたら上げ、古い形式のキャッシュを再計算させる
 
     def __init__(
         self,
@@ -132,7 +133,27 @@ class KnowledgeBase:
                 }
             )
 
-        return chunks
+        # 改行のない長い段落はmxbai-embed-largeの上限（実測で約500〜700字）を超えるため、
+        # chunk_size以下に切り分けて、埋め込みの切り捨てを防ぐ
+        return [
+            {**chunk, "content": chunk["content"][i : i + chunk_size]}
+            for chunk in chunks
+            for i in range(0, len(chunk["content"]), chunk_size)
+        ]
+
+    def _valid_cached_chunks(
+        self, entry: dict[str, Any] | None, file_hash: str
+    ) -> list[dict[str, Any]] | None:
+        """ファイル内容とチャンク形式が一致し、埋め込みが揃ったキャッシュのチャンクを返す"""
+        if (
+            entry is not None
+            and entry.get("hash") == file_hash
+            and entry.get("version") == self.CACHE_VERSION
+            and all(c.get("embedding") for c in entry["chunks"])
+        ):
+            chunks: list[dict[str, Any]] = entry["chunks"]
+            return chunks
+        return None
 
     def load_knowledge(self) -> None:
         """ナレッジベースをロード"""
@@ -168,15 +189,8 @@ class KnowledgeBase:
             file_hash = self._compute_file_hash(md_file)
             file_name = md_file.name
 
-            # キャッシュが有効かチェック（埋め込みが空のチャンクを含むキャッシュは無効）
-            cached_entry = cache_data.get(file_name)
-            if (
-                cached_entry is not None
-                and cached_entry.get("hash") == file_hash
-                and all(c.get("embedding") for c in cached_entry["chunks"])
-            ):
-                # キャッシュから復元
-                cached_chunks = cached_entry["chunks"]
+            cached_chunks = self._valid_cached_chunks(cache_data.get(file_name), file_hash)
+            if cached_chunks is not None:
                 all_chunks.extend(cached_chunks)
             else:
                 # 新規、ファイルが更新された、または前回の埋め込みが失敗していた
@@ -192,7 +206,11 @@ class KnowledgeBase:
                 # 埋め込みが失敗したチャンクを含む場合はキャッシュに保存しない
                 # （次回ロード時に再度埋め込みを試みるため）
                 if all(c.get("embedding") for c in chunks):
-                    cache_data[file_name] = {"hash": file_hash, "chunks": chunks}
+                    cache_data[file_name] = {
+                        "hash": file_hash,
+                        "version": self.CACHE_VERSION,
+                        "chunks": chunks,
+                    }
                 else:
                     cache_data.pop(file_name, None)
                 all_chunks.extend(chunks)

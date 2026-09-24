@@ -160,8 +160,27 @@ def test_extract_full_text_round_trip(temp_transcript_dir: Path) -> None:
         assert extract_full_text(saved_content) == full_text
 
 
-def test_extract_full_text_uses_first_marker_when_text_contains_marker() -> None:
-    """本文に【全文】という語が含まれていても、最初のマーカー以降をすべて返すテスト"""
+def test_extract_full_text_keeps_marker_inside_full_text() -> None:
+    """全文の中に【全文】という語があっても、見出し以降をすべて返すテスト"""
     content = "【タイムスタンプ付き】\n\n【全文】\n\n次に【全文】を確認します\n"
 
     assert extract_full_text(content) == "次に【全文】を確認します"
+
+
+def test_extract_full_text_ignores_marker_inside_timestamped_segment(
+    temp_transcript_dir: Path,
+) -> None:
+    """タイムスタンプ付きセグメント内の【全文】ではなく、全文の見出しから取り出すテスト"""
+    with patch("app.transcriber.WhisperModel"):
+        transcriber = Transcriber()
+        segments = [
+            Segment(start=0.0, end=1.0, text="【全文】"),
+            Segment(start=1.0, end=2.0, text="資料の【全文】を共有します"),
+        ]
+        full_text = "【全文】資料の【全文】を共有します"
+
+        output_path = transcriber.save_transcript(
+            full_text, segments, temp_transcript_dir / "marker_in_segment.txt"
+        )
+
+        assert extract_full_text(output_path.read_text(encoding="utf-8")) == full_text

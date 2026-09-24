@@ -270,8 +270,8 @@ def test_calculate_num_ctx_short_prompt_uses_minimum() -> None:
 
 def test_calculate_num_ctx_rounds_up_to_1024_multiple() -> None:
     """プロンプト長+出力トークン数を1024単位に切り上げるテスト"""
-    # 10000 + 2048(NUM_PREDICT) = 12048 -> 1024単位で切り上げ12288
-    assert MinutesGenerator._calculate_num_ctx(10000) == 12288
+    # 10000 * 8/5 + 2048(NUM_PREDICT) = 18048 -> 1024単位で切り上げ18432
+    assert MinutesGenerator._calculate_num_ctx(10000) == 18432
 
 
 def test_calculate_num_ctx_clamps_to_max_and_warns(caplog: pytest.LogCaptureFixture) -> None:
@@ -313,7 +313,7 @@ def test_generate_passes_num_ctx_sized_to_prompt() -> None:
 def test_calculate_num_ctx_does_not_warn_at_exact_max(caplog: pytest.LogCaptureFixture) -> None:
     """見積もりがちょうど上限32768なら警告せず上限を返すテスト"""
     with caplog.at_level("WARNING"):
-        num_ctx = MinutesGenerator._calculate_num_ctx(32768 - 2048)
+        num_ctx = MinutesGenerator._calculate_num_ctx(19200)  # 19200 * 8/5 + 2048 = 32768
 
     assert num_ctx == 32768
     assert caplog.text == ""
@@ -322,20 +322,29 @@ def test_calculate_num_ctx_does_not_warn_at_exact_max(caplog: pytest.LogCaptureF
 def test_calculate_num_ctx_warns_one_over_max(caplog: pytest.LogCaptureFixture) -> None:
     """見積もりが上限を1トークンでも超えたら警告するテストで、推定値と上限を含める"""
     with caplog.at_level("WARNING"):
-        num_ctx = MinutesGenerator._calculate_num_ctx(32768 - 2048 + 1)
+        num_ctx = MinutesGenerator._calculate_num_ctx(19201)  # ceil(30721.6) + 2048 = 32770
 
     assert num_ctx == 32768
-    assert "推定32769トークン" in caplog.text
+    assert "推定32770トークン" in caplog.text
     assert "上限32768トークン" in caplog.text
 
 
 def test_calculate_num_ctx_keeps_exact_multiple_and_rounds_next() -> None:
     """1024の倍数ちょうどはそのまま、1超えると次の倍数に切り上げるテスト"""
-    assert MinutesGenerator._calculate_num_ctx(8192 - 2048) == 8192
-    assert MinutesGenerator._calculate_num_ctx(8192 - 2048 + 1) == 9216
+    assert MinutesGenerator._calculate_num_ctx(3840) == 8192  # 3840 * 8/5 + 2048 = 8192
+    assert MinutesGenerator._calculate_num_ctx(3841) == 9216
 
 
 def test_calculate_num_ctx_minimum_boundary() -> None:
     """下限4096の境界で、4097以上は切り上げた値になるテスト"""
-    assert MinutesGenerator._calculate_num_ctx(4096 - 2048) == 4096
-    assert MinutesGenerator._calculate_num_ctx(4096 - 2048 + 1) == 5120
+    assert MinutesGenerator._calculate_num_ctx(1280) == 4096  # 1280 * 8/5 + 2048 = 4096
+    assert MinutesGenerator._calculate_num_ctx(1281) == 5120
+
+
+def test_calculate_num_ctx_covers_rare_kanji_token_ratio() -> None:
+    """稀な漢字（qwen2.5実測1.53トークン/字）でもプロンプトと出力が収まるテスト"""
+    prompt_chars = 5000
+
+    num_ctx = MinutesGenerator._calculate_num_ctx(prompt_chars)
+
+    assert num_ctx >= prompt_chars * 1.53 + MinutesGenerator.NUM_PREDICT

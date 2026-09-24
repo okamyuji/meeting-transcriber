@@ -214,7 +214,8 @@ def extract_full_text(content: str) -> str:
 
     save_transcriptはタイムスタンプ付きセグメントと【全文】セクションの
     両方を書き出す。ファイル全体をそのままLLMに渡すと同じ内容を二重に
-    読ませることになるため、【全文】以降だけを取り出す。
+    読ませることになるため、【全文】見出し以降だけを取り出す。
+    セグメント本文が【全文】だけの行になることもあるため、見出しの行を最後から探す。
 
     Args:
         content: transcript_*.txt の中身
@@ -222,11 +223,11 @@ def extract_full_text(content: str) -> str:
     Returns:
         【全文】マーカー以降のテキスト（マーカーがなければcontentをそのまま返す）
     """
-    marker = "【全文】"
-    idx = content.find(marker)
+    heading = "\n【全文】\n"
+    idx = content.rfind(heading)
     if idx == -1:
         return content
-    return content[idx + len(marker) :].strip()
+    return content[idx + len(heading) :].strip()
 
 
 def main() -> None:

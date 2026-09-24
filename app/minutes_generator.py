@@ -1,6 +1,8 @@
 """LLMを使った議事録生成モジュール（Ollama - 完全ローカル実行）"""
 
+import math
 from datetime import datetime
+from fractions import Fraction
 from pathlib import Path
 
 import ollama
@@ -19,6 +21,8 @@ class MinutesGenerator:
     MIN_NUM_CTX = 4096  # Ollamaのデフォルトコンテキスト長
     MAX_NUM_CTX = 32768  # qwen2.5シリーズの最大コンテキスト長
     NUM_CTX_STEP = 1024  # num_ctxの丸め単位
+    # qwen2.5の実測（一般的な日本語0.63、稀な漢字1.53、絵文字1.00、英語0.22トークン/字）を上回る係数
+    TOKENS_PER_CHAR = Fraction(8, 5)
 
     DEFAULT_SYSTEM_PROMPT = """あなたは優秀な日本語の議事録作成アシスタントです。
 会議の文字起こしテキストから、読みやすく整理された議事録を作成してください。
@@ -110,7 +114,7 @@ class MinutesGenerator:
 
         Ollamaのデフォルトnum_ctx（4096）は、日本語の長い会議の文字起こしを
         黙って切り詰める（keep=4のシステムプロンプトと文字起こし冒頭だけが残る）。
-        システムプロンプト＋ユーザープロンプトの文字数をトークン数の上限として使う。
+        OllamaにはトークナイズAPIがないため、文字数にTOKENS_PER_CHARを掛けて上限を見積もる。
 
         Args:
             prompt_chars: システムプロンプトとユーザープロンプトの合計文字数
@@ -118,10 +122,10 @@ class MinutesGenerator:
         Returns:
             Ollamaに渡すnum_ctx（MIN_NUM_CTX〜MAX_NUM_CTXの範囲、1024単位）
         """
-        # ponytail: 文字数をトークン数の上限とみなす簡易見積もり（qwen2.5の日本語は
-        # 実測約0.7トークン/文字なので安全側）。MAX_NUM_CTXを超える会議は切り詰められる。
-        # 対応が必要になったらチャンク分割要約へ切り替える。
-        estimated_tokens = prompt_chars + cls.NUM_PREDICT
+        # ponytail: 文字数×係数の簡易見積もり。一般的な日本語では実際の約2.5倍のnum_ctxを確保し、
+        # 約70分を超える会議では実際は収まっていても警告が出る。MAX_NUM_CTXを超える会議は
+        # 切り詰められるため、対応が必要になったらチャンク分割要約へ切り替える。
+        estimated_tokens = math.ceil(prompt_chars * cls.TOKENS_PER_CHAR) + cls.NUM_PREDICT
 
         if estimated_tokens > cls.MAX_NUM_CTX:
             logger.warning(
