@@ -9,7 +9,7 @@ from dotenv import load_dotenv
 from app.logger import setup_logger
 from app.minutes_generator import MinutesGenerator
 from app.recorder import AudioRecorder
-from app.transcriber import Transcriber
+from app.transcriber import Transcriber, extract_full_text
 
 logger = setup_logger(__name__)
 
@@ -216,7 +216,7 @@ def generate_minutes_from_transcript(minutes_gen: MinutesGenerator) -> None:
     # 文字起こしを読み込み
     try:
         with open(transcript_path, encoding="utf-8") as f:
-            transcript = f.read()
+            transcript = extract_full_text(f.read())
     except UnicodeDecodeError:
         logger.error("❌ ファイルの読み込みに失敗しました（UTF-8エンコーディングエラー）")
         logger.info("   ファイルがテキスト形式であることを確認してください。")

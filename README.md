@@ -1,6 +1,6 @@
 # meeting-transcriber
 
-完全ローカルで動作する日本語向け会議文字起こしと議事録自動生成ツールです。faster-whisper を使った音声文字起こしと、Ollama によるローカルLLMを組み合わせ、データを外部に送らずに会議の記録と議事録作成をおこなえます。
+完全ローカルで動作する日本語向け会議文字起こしと議事録自動生成ツールです。音声の文字起こしはfaster-whisperが担い、議事録の作成はOllama上のローカルLLMが担うため、データを外部に送らずに会議を記録できます。
 
 ## 特徴
 
@@ -79,7 +79,7 @@ uv run python -m app.transcriber path/to/audio.wav large-v3
 
 ## RAG機能
 
-`data/knowledge/` ディレクトリにMarkdownファイルを置くと、議事録生成のプロンプトに関連知識が自動的に追加されます。埋め込みは初回計算時に `.rag_cache/` にキャッシュされ、2回目以降の起動を高速化します。
+`data/knowledge/` ディレクトリにMarkdownファイルを置くと、議事録生成のプロンプトに関連知識が自動的に追加されます。埋め込みは初回計算時に `.rag_cache/` にキャッシュされ、2回目以降の起動を高速化します。Ollamaが停止していたなどで埋め込みに失敗したファイルはキャッシュせず、次回起動時に再計算します。
 
 ```text
 data/knowledge/
@@ -147,6 +147,7 @@ meeting-transcriber/
 | `kotoba-tech/kotoba-whisper-v1.0` のロード失敗 | CTranslate2版の `kotoba-tech/kotoba-whisper-v1.0-faster` を指定してください |
 | Ollamaに接続できない | 別ターミナルで `ollama serve` を起動し、必要なモデルが `ollama list` に表示されることを確認してください |
 | メモリ不足 | より小さなモデル（`small` や `medium`）を選んでください |
+| 長い会議で「コンテキスト上限を超えて切り詰められる可能性があります」と表示される | 議事録生成はプロンプト長に合わせて `num_ctx` を最大32768トークンまで広げます。これを超える文字起こしは末尾が反映されないため、会議を分けて文字起こししてください |
 
 ## コストについて
 

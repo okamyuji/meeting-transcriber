@@ -1,19 +1,28 @@
 """LLMを使った議事録生成モジュール（Ollama - 完全ローカル実行）"""
 
+import math
 from datetime import datetime
+from fractions import Fraction
 from pathlib import Path
 
 import ollama
 from tqdm import tqdm
 
 from app.logger import setup_logger
-from app.rag import KnowledgeBase
+from app.rag import KnowledgeBase, is_model_available
 
 logger = setup_logger(__name__)
 
 
 class MinutesGenerator:
     """議事録生成クラス（Ollama使用）"""
+
+    NUM_PREDICT = 2048  # 出力トークン数の上限
+    MIN_NUM_CTX = 4096  # Ollamaのデフォルトコンテキスト長
+    MAX_NUM_CTX = 32768  # qwen2.5シリーズの最大コンテキスト長
+    NUM_CTX_STEP = 1024  # num_ctxの丸め単位
+    # qwen2.5の実測（一般的な日本語0.63、稀な漢字1.53、絵文字1.00、英語0.22トークン/字）を上回る係数
+    TOKENS_PER_CHAR = Fraction(8, 5)
 
     DEFAULT_SYSTEM_PROMPT = """あなたは優秀な日本語の議事録作成アシスタントです。
 会議の文字起こしテキストから、読みやすく整理された議事録を作成してください。
@@ -79,14 +88,13 @@ class MinutesGenerator:
 
         # Ollamaの接続確認
         try:
-            models = ollama.list()
-            available_models = [m["name"] for m in models.get("models", [])]
+            available_models = [m["model"] for m in ollama.list()["models"]]
 
             if not available_models:
                 logger.warning("⚠️  Ollamaモデルが見つかりません")
                 logger.info("   以下のコマンドでモデルをダウンロードしてください：")
                 logger.info(f"   ollama pull {model}")
-            elif model not in available_models:
+            elif not is_model_available(model, available_models):
                 logger.warning(f"⚠️  モデル '{model}' が見つかりません")
                 logger.info(f"   利用可能なモデル: {', '.join(available_models)}")
                 logger.info("   以下のコマンドでダウンロード：")
@@ -98,6 +106,36 @@ class MinutesGenerator:
             logger.warning(f"⚠️  Ollamaサーバーに接続できません: {e}")
             logger.info("   Ollamaが起動しているか確認してください：")
             logger.info("   https://ollama.com/download")
+
+    @classmethod
+    def _calculate_num_ctx(cls, prompt_chars: int) -> int:
+        """
+        プロンプトの文字数からOllamaに渡すnum_ctxを見積もる
+
+        Ollamaのデフォルトnum_ctx（4096）は、日本語の長い会議の文字起こしを
+        黙って切り詰める（keep=4のシステムプロンプトと文字起こし冒頭だけが残る）。
+        OllamaにはトークナイズAPIがないため、文字数にTOKENS_PER_CHARを掛けて上限を見積もる。
+
+        Args:
+            prompt_chars: システムプロンプトとユーザープロンプトの合計文字数
+
+        Returns:
+            Ollamaに渡すnum_ctx（MIN_NUM_CTX〜MAX_NUM_CTXの範囲、1024単位）
+        """
+        # ponytail: 文字数×係数の簡易見積もり。一般的な日本語では実際の約2.5倍のnum_ctxを確保し、
+        # 約70分を超える会議では実際は収まっていても警告が出る。MAX_NUM_CTXを超える会議は
+        # 切り詰められるため、対応が必要になったらチャンク分割要約へ切り替える。
+        estimated_tokens = math.ceil(prompt_chars * cls.TOKENS_PER_CHAR) + cls.NUM_PREDICT
+
+        if estimated_tokens > cls.MAX_NUM_CTX:
+            logger.warning(
+                f"⚠️  文字起こしが長いため、コンテキスト上限を超えて"
+                f"切り詰められる可能性があります（推定{estimated_tokens}トークン "
+                f"> 上限{cls.MAX_NUM_CTX}トークン）"
+            )
+
+        rounded = -(-estimated_tokens // cls.NUM_CTX_STEP) * cls.NUM_CTX_STEP
+        return max(cls.MIN_NUM_CTX, min(rounded, cls.MAX_NUM_CTX))
 
     def generate(
         self,
@@ -151,6 +189,8 @@ class MinutesGenerator:
             pbar.set_description("🤖 LLM実行準備")
             pbar.update(1)
 
+        num_ctx = self._calculate_num_ctx(len(system_prompt) + len(user_prompt))
+
         try:
             # LLM実行の進捗表示
             with tqdm(
@@ -167,7 +207,8 @@ class MinutesGenerator:
                     ],
                     options={
                         "temperature": 0.3,  # 創造性を抑えて正確性重視
-                        "num_predict": 2048,  # 最大出力トークン数
+                        "num_predict": self.NUM_PREDICT,  # 最大出力トークン数
+                        "num_ctx": num_ctx,  # プロンプト長に応じたコンテキスト長
                     },
                 )
                 llm_pbar.update(100)
@@ -252,9 +293,11 @@ def main() -> None:
         logger.error(f"❌ ファイルが見つかりません: {transcript_path}")
         sys.exit(1)
 
+    from app.transcriber import extract_full_text
+
     # 文字起こしを読み込み
     with open(transcript_path, encoding="utf-8") as f:
-        transcript = f.read()
+        transcript = extract_full_text(f.read())
 
     # 議事録を生成
     generator = MinutesGenerator()
