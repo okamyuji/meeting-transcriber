@@ -5,7 +5,7 @@ from unittest.mock import Mock, patch
 
 import pytest
 
-from app.transcriber import Segment, Transcriber
+from app.transcriber import Segment, Transcriber, extract_full_text
 
 
 def test_segment_init() -> None:
@@ -122,3 +122,46 @@ def test_format_time() -> None:
     assert Transcriber._format_time(0) == "00:00:00"
     assert Transcriber._format_time(65) == "00:01:05"
     assert Transcriber._format_time(3665) == "01:01:05"
+
+
+def test_extract_full_text_with_marker() -> None:
+    """【全文】マーカー以降のテキストのみ取り出すテスト"""
+    content = (
+        "=" * 80
+        + "\n文字起こし結果\n"
+        + "=" * 80
+        + "\n\n【タイムスタンプ付き】\n\n[00:00:00 -> 00:00:01]\nテスト\n\n"
+        + "【全文】\n\nテスト文字起こし\n"
+    )
+
+    assert extract_full_text(content) == "テスト文字起こし"
+
+
+def test_extract_full_text_without_marker() -> None:
+    """マーカーがない場合はそのまま返すテスト"""
+    content = "マーカーなしのプレーンな文字起こし"
+
+    assert extract_full_text(content) == content
+
+
+def test_extract_full_text_round_trip(temp_transcript_dir: Path) -> None:
+    """save_transcriptの出力からextract_full_textで全文が復元できるテスト"""
+    with patch("app.transcriber.WhisperModel"):
+        transcriber = Transcriber()
+
+        full_text = "これはテストの全文です。"
+        segments = [Segment(start=0.0, end=1.0, text="これはテストの全文です。")]
+
+        output_path = transcriber.save_transcript(
+            full_text, segments, temp_transcript_dir / "roundtrip.txt"
+        )
+        saved_content = output_path.read_text(encoding="utf-8")
+
+        assert extract_full_text(saved_content) == full_text
+
+
+def test_extract_full_text_uses_first_marker_when_text_contains_marker() -> None:
+    """本文に【全文】という語が含まれていても、最初のマーカー以降をすべて返すテスト"""
+    content = "【タイムスタンプ付き】\n\n【全文】\n\n次に【全文】を確認します\n"
+
+    assert extract_full_text(content) == "次に【全文】を確認します"

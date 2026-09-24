@@ -208,6 +208,27 @@ class Transcriber:
         return f"{hours:02d}:{minutes:02d}:{secs:02d}"
 
 
+def extract_full_text(content: str) -> str:
+    """
+    save_transcriptが出力したファイルから全文テキストのみを取り出す
+
+    save_transcriptはタイムスタンプ付きセグメントと【全文】セクションの
+    両方を書き出す。ファイル全体をそのままLLMに渡すと同じ内容を二重に
+    読ませることになるため、【全文】以降だけを取り出す。
+
+    Args:
+        content: transcript_*.txt の中身
+
+    Returns:
+        【全文】マーカー以降のテキスト（マーカーがなければcontentをそのまま返す）
+    """
+    marker = "【全文】"
+    idx = content.find(marker)
+    if idx == -1:
+        return content
+    return content[idx + len(marker) :].strip()
+
+
 def main() -> None:
     """テスト用のメイン関数"""
     import sys

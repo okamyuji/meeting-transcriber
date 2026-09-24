@@ -141,6 +141,32 @@ def test_generate_minutes_from_transcript_success(
     assert call_args.kwargs["additional_context"] == "参加者情報"
 
 
+def test_generate_minutes_from_transcript_extracts_full_text_only(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """save_transcript形式のファイルは【全文】以降だけがLLMに渡されるテスト"""
+    transcript_path = tmp_path / "transcript_with_timestamps.txt"
+    transcript_path.write_text(
+        "=" * 80
+        + "\n文字起こし結果\n"
+        + "=" * 80
+        + "\n\n【タイムスタンプ付き】\n\n[00:00:00 -> 00:00:01]\n重複テキスト\n\n"
+        + "【全文】\n\n重複テキスト\n",
+        encoding="utf-8",
+    )
+
+    inputs = iter([str(transcript_path), "", ""])
+    monkeypatch.setattr("builtins.input", lambda _: next(inputs))
+
+    mock_minutes_gen = Mock()
+    mock_minutes_gen.generate_and_save.return_value = ("議事録", Path("/tmp/minutes.md"))
+
+    generate_minutes_from_transcript(mock_minutes_gen)
+
+    call_args = mock_minutes_gen.generate_and_save.call_args
+    assert call_args.args[0] == "重複テキスト"
+
+
 def test_generate_minutes_error(
     sample_transcript_file: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

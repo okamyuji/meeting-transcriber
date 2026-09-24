@@ -7,6 +7,16 @@ import numpy as np
 import pytest
 
 
+@pytest.fixture(autouse=True)
+def isolate_cwd(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """data/knowledge や .rag_cache などの相対パスをリポジトリから切り離す
+
+    カレントディレクトリがリポジトリのままだと、RAG有効のMinutesGeneratorが
+    実ナレッジを読み、キャッシュが無ければ実Ollamaで埋め込みを計算してしまう。
+    """
+    monkeypatch.chdir(tmp_path)
+
+
 @pytest.fixture
 def temp_audio_dir(tmp_path: Path) -> Path:
     """一時的な音声ディレクトリ"""
