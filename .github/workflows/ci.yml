@@ -22,7 +22,9 @@ jobs:
       - name: Install system dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y --no-install-recommends libportaudio2 libsndfile1
+          sudo apt-get install -y --no-install-recommends libportaudio2 libsndfile1 pulseaudio
+          # Ubuntu 26.04 の libportaudio2 は PulseAudio に接続できないと初期化に失敗し、sounddevice の import で止まる
+          pulseaudio --start --exit-idle-time=-1
 
       - name: Install uv
         uses: astral-sh/setup-uv@caf0cab7a618c569241d31dcd442f54681755d39 # v3
