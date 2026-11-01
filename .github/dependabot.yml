@@ -1,0 +1,15 @@
+# 公開から3日未満の版は提案しない（pnpm の minimumReleaseAge と同じ待機）。minor と patch は major と別の PR にまとめ、major で CI が落ちても残りを取り込めるようにする
+version: 2
+updates:
+  - package-ecosystem: uv
+    directories:
+      - "/"
+    schedule:
+      interval: weekly
+    cooldown:
+      default-days: 3
+    groups:
+      minor-and-patch:
+        update-types: [minor, patch]
+      major:
+        update-types: [major]
