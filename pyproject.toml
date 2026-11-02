@@ -107,3 +107,7 @@ exclude_lines = [
     "raise NotImplementedError",
     "if TYPE_CHECKING:",
 ]
+
+[tool.uv]
+# Dependabot の cooldown は直接の依存にしか効かないので、推移的な依存にも公開から 3 日の待機をかける
+exclude-newer = "3 days"
