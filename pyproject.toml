@@ -20,7 +20,7 @@ dev = [
     "pytest>=9.0.3",
     "pytest-cov>=7.0.0",
     "ruff>=0.17.6",
-    "types-tqdm>=4.67.0.20250809",
+    "types-tqdm>=4.70.0.20261122",
 ]
 
 # Ruff設定
